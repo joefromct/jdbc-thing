@@ -94,64 +94,7 @@
   )
 
 
-(defn- db-print-table
-  "Alpha - subject to change.
-   Prints a collection of maps in a textual table. Prints table headings
-   ks, and then a line of output for each row, corresponding to the keys
-   in ks. If ks are not specified, use the keys of the first item in rows."
-  ([ks rows]
-    ;(pprint (type rows )  ) 
-     (when (seq rows)
-       (let [
-             widths (map
-                     (fn [k]
-                       (apply max 
-                              (count (str k)) 
-                              (map #(count (
-                                            ; \r\n is seen as two chars by the
-                                            ; OS, but we are representing it as
-                                            ; 6 chars in \\r\\n in the output: 
-                                            clojure.string/replace (str (get % k)) "\r\n" "      " 
-                                            )) rows)))
-                     ks)
-             fmts (map #(str "%-" % "s") widths)
-             fmt-row (fn [row]
-                       (apply str 
-                              (interpose " | "
-                                             (for [[col fmt] (map vector (map #(get row %) ks) fmts)]
-                                                  (format fmt (str col)))
-                                             )
-                              )
-                       )
-             header (fmt-row (zipmap ks ks))
-             bar (apply str (repeat (count header) "="))
-             ]
-         (println bar)
-         (println header)
-         (println bar)
-         (doseq [row rows]
-           ; TODO we will have to find the newline char of the OS and then replace
-           ; with the correct thing here.  
-            (println (clojure.string/replace (fmt-row row) "\r\n" "\\r\\n" ) )
-           )
-         (println bar))))
-  ;for airity without column headings 
-  ([rows] (db-print-table (keys (first rows)) rows))
-  )
-
-
-(spit 
-  (clojure.java.io/file (System/getProperty "user.home") "/.jdbc-thing/temp" ) 
-  (with-out-str (db-print-table (
-                                  db-fetch-results 
-                                  :mssqldb 
-                                 ["select top 100 getdate()  "] 
-                                 )  
-                                )
-                ) 
-  ) 
-
-(defn- db-get-table-metadata 
+(defn- describe-table
   "Uses DatabaseMetaData getColumns to return useful information on the
   metadata for a table passed in, returns useful details based on the specified
   table/column pairings.
@@ -166,10 +109,10 @@
                        ) 
   "
   [ 
-   {:keys [ db-spec catalog schemapattern tablenamepattern return-meta-columns ] 
+   {:keys [db-spec catalog schemapattern tablenamepattern return-meta-columns] 
     :or {
-         catalog nil 
-         schemapattern nil 
+         catalog          nil 
+         schemapattern    nil 
          tablenamepattern nil 
          return-meta-columns [ ; TODO Should the below somehow be metadata? 
                               :table_cat        ; table catalog (may be null)
@@ -184,8 +127,7 @@
                               ;:data_type        ; SQL type from java.sql.Types
                               ;:decimal_digits   ; the number of fractional digits
                               ;:nullable         ; is NULL allowed.
-                              ] }  }
-   ] 
+                              ] }  } ]
   {:pre [
          (not (nil? db-spec))   ; Have to have a db-spec to connect to 
          (not (nil? tablenamepattern ))  ; we don't want to return every table on a large database 
@@ -203,14 +145,7 @@
                                     (.getMetaData)
                                     (.getColumns catalog schemapattern tablenamepattern "%" )
                                     ;(.getColumns "stuff" "public" nil "%")
-                                    )
-                                  )
-                  )
-            )
-       )
-     )
-   )
-)
+                                    ))))))))
 
 
 (defn broker-request 
@@ -226,12 +161,16 @@
          ] 
    }
     (cond 
-      (= request-type "select"        ) (db-fetch-results db-spec [database-code] ) 
+      (= request-type "select"        ) (print-table (db-fetch-results db-spec [database-code] )  ) 
       (= request-type "drop"          ) (db-do-commands (get-db-connection-map db-spec) false database-code ) 
       (= request-type "create"        ) (db-do-commands (get-db-connection-map db-spec) false database-code ) 
       (= request-type "insert"        ) (println "insert")   
       (= request-type "delete"        ) (println "delete") 
-      (= request-type "describe-table") (println "describe table") 
+      (= request-type "describe-table") (
+                    
+                                         
+                                         
+                                         ) 
       :else "something else???" 
   )
 )
@@ -248,6 +187,17 @@
                  :database-code "create table dbo.jr_temp ( temp varchar(100) ) " 
                  })
 
+(broker-request {
+                 :db-spec :mssqldb 
+                 :request-type "select" 
+                 :database-code "select 'aoueaoue' as asdf , 'aoe uaoeu' as temp1, 198 as temp_int, '1323' as temp2 " 
+                 })
+
+(broker-request {
+                 :db-spec :mssqldb 
+                 :request-type "describe-table" 
+                 :database-code "dbo.dim_claim" 
+                 })
 
 
 ;(.. ResultSetMetaData (getMetaData) )
@@ -279,3 +229,16 @@
   (println "first-expression") 
 )
 
+
+
+
+(spit 
+  (clojure.java.io/file (System/getProperty "user.home") "/.jdbc-thing/temp" ) 
+  (with-out-str (print-table (
+                                  db-fetch-results 
+                                  :mssqldb 
+                                 ["select top 100 getdate()  "] 
+                                 )  
+                                )
+                ) 
+  ) 
